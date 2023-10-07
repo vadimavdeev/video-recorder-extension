@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
-  "name": "Media Recorder",
-  "description": "Records a media stream from a webpage and downloads it locally",
+  "name": "Video Recorder",
+  "description": "Records a video stream from a webpage and downloads it locally",
   "version": "1.0",
   "icons": {
     "16": "images/icon-16.png",
