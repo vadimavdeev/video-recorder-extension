@@ -1,26 +1,73 @@
-chrome.runtime.onInstalled.addListener(() => {
+// { [tabId]: TabState } tabs - a hash of tab states keyed by tab id
+// where TabState is an object with the following properties:
+// - scriptInjected {boolean|undefined}
+// - badgeText {string|undefined}
+let tabs = {};
+let activeTabId = null;
+
+function setActiveTab(tabId) {
+  if (!tabs[tabId]) {
+    tabs[tabId] = {};
+  }
+  activeTabId = tabId;
+  updateBadge();
+}
+
+function resetTabState(tabId) {
+  tabs[tabId] = {};
+  updateBadge();
+}
+
+function updateTabState(tabId, tabState) {
+  tabs[tabId] = { ...tabs[tabId], ...tabState };
+  updateBadge();
+}
+
+function updateBadge() {
+  const activeTab = tabs[activeTabId];
   chrome.action.setBadgeText({
-    text: "OFF",
+    text: activeTab?.scriptInjected ? activeTab.badgeText : "",
+  });
+}
+
+// updates the currently active tab
+chrome.tabs.onActivated.addListener(({ tabId }) => {
+  setActiveTab(tabId);
+});
+
+// resets the tab state when the tab is reloaded
+chrome.tabs.onUpdated.addListener((tabId, changeInfo) => {
+  if (changeInfo.status === "loading") {
+    resetTabState(tabId);
+  }
+});
+
+// the content script sends an update to the badge text
+chrome.runtime.onMessage.addListener((request, sender) => {
+  const tabId = sender.tab?.id;
+  if (!tabId || !tabs[tabId]) {
+    console.log("unknown message sender", sender.tab);
+    return;
+  }
+  updateTabState(tabId, {
+    badgeText: request.badgeText,
   });
 });
 
+// depending on the current tab state, either starts or stops the recording
 chrome.action.onClicked.addListener(async (tab) => {
-  // Retrieve the action badge to check if the extension is 'ON' or 'OFF'
-  const prevState = await chrome.action.getBadgeText({ tabId: tab.id });
-  // Next state will always be the opposite
-  const nextState = prevState === "ON" ? "OFF" : "ON";
+  const tabState = tabs[tab.id];
+  if (!tabState) {
+    resetTabState(tab.id);
+  }
 
-  // Set the action badge to the next state
-  await chrome.action.setBadgeText({
-    tabId: tab.id,
-    text: nextState,
-  });
-
-  if (nextState === "ON") {
-    // Insert the CSS file when the user turns the extension on
+  if (!tabState.scriptInjected) {
     await chrome.scripting.executeScript({
       target: { tabId: tab.id },
-      files: ["content-script.js"],
+      files: ["fix-webm-duration.js", "content-script.js"],
     });
+    updateTabState(tab.id, { scriptInjected: true });
+  } else {
+    await chrome.tabs.sendMessage(tab.id, { op: "stop-recording" });
   }
 });
