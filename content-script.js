@@ -80,6 +80,10 @@ function startRecording(video) {
     a.click();
   }
 
+  if (video.readyState >= HTMLMediaElement.HAVE_FUTURE_DATA && !video.paused) {
+    onVideoPlaying();
+  }
+
   return onVideoEnded;
 }
 
